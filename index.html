@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <label>Rest for <input id="restCountInput" value="10" /></label>
+    <label>Exercise for <input id="activityCountInput" value="30" /></label>
+    <button id="startStopButton">Start</button>
+
+    <p id="countLabel"></p>
+
+    <script type="text/javascript">
+      const BEEP_DURATION_SHORT = 0.1;
+      const BEEP_DURATION_LONG = 0.25;
+      const BEEP_FREQUENCY_LOW = 400;
+      const BEEP_FREQUENCY_HIGH = 800;
+      const CLOCK_TICK_INTERVAL = 1000;
+
+      const audioContext = new AudioContext();
+
+      let running = false;
+
+      const label = document.getElementById("countLabel");
+      const button = document.getElementById("startStopButton");
+      const restCountInput = document.getElementById("restCountInput");
+      const activityCountInput = document.getElementById("activityCountInput");
+
+      function beep(frequency, duration) {
+        return new Promise((resolve) => {
+          const oscillator = audioContext.createOscillator();
+          oscillator.frequency.value = frequency;
+          oscillator.connect(audioContext.destination);
+          oscillator.addEventListener("ended", resolve);
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + duration);
+        });
+      }
+
+      function speak(text, onStartCallback) {
+        if (speechSynthesis.speaking) {
+          return;
+        }
+
+        const speechSynthesisUtterance = new SpeechSynthesisUtterance();
+        speechSynthesisUtterance.lang = "en";
+        speechSynthesisUtterance.rate = 1;
+        speechSynthesisUtterance.text = text;
+        speechSynthesisUtterance.voiceUri = "native";
+        speechSynthesisUtterance.addEventListener("start", onStartCallback);
+
+        speechSynthesis.speak(speechSynthesisUtterance);
+      }
+
+      function speakAndBeep(text, frequency, duration) {
+        if (speechSynthesis.speaking) {
+          beep(frequency, duration);
+          return;
+        } else {
+          speak(text, () => {
+            beep(frequency, duration);
+          });
+        }
+      }
+
+      function runRest() {
+        let counter = parseInt(restCountInput.value, 10);
+
+        async function tick() {
+          if (!running) {
+            return;
+          }
+
+          label.textContent = `Starting in ${counter} seconds ...`;
+
+          if (counter === 0) {
+            speakAndBeep("start", BEEP_FREQUENCY_HIGH, BEEP_DURATION_LONG);
+
+            runActivity();
+
+            return;
+          }
+
+          if (counter <= 3) {
+            speakAndBeep(counter, BEEP_FREQUENCY_LOW, BEEP_DURATION_SHORT);
+          } else {
+            speak(counter);
+          }
+
+          counter--;
+
+          setTimeout(tick, CLOCK_TICK_INTERVAL);
+        }
+
+        setTimeout(tick, CLOCK_TICK_INTERVAL);
+      }
+
+      function runActivity() {
+        const maxCount = parseInt(activityCountInput.value, 10);
+        let counter = 0;
+
+        async function tick() {
+          if (!running) {
+            return;
+          }
+
+          counter++;
+
+          label.textContent = `${counter} seconds`;
+
+          if (counter === maxCount) {
+            speakAndBeep("rest", BEEP_FREQUENCY_HIGH, BEEP_DURATION_LONG);
+
+            runRest();
+
+            return;
+          }
+
+          const countToSpeak = counter % 10 === 0 ? counter : counter % 10;
+
+          if (counter <= maxCount - 3) {
+            speak(countToSpeak);
+          } else {
+            speakAndBeep(countToSpeak, BEEP_FREQUENCY_LOW, BEEP_DURATION_SHORT);
+          }
+
+          setTimeout(tick, CLOCK_TICK_INTERVAL);
+        }
+
+        setTimeout(tick, CLOCK_TICK_INTERVAL);
+      }
+
+      function start() {
+        if (!running) {
+          running = true;
+
+          label.textContent = "Starting...";
+
+          countLabel.style.display = "block";
+
+          runRest();
+        }
+      }
+
+      function stop() {
+        if (running) {
+          running = false;
+
+          countLabel.style.display = "none";
+        }
+      }
+
+      button.addEventListener("click", () => {
+        if (running) {
+          stop();
+        } else {
+          start();
+        }
+      });
+
+      activityCountInput.addEventListener("change", () => {
+        stop();
+      });
+      restCountInput.addEventListener("change", () => {
+        stop();
+      });
+    </script>
+  </body>
+</html>
